@@ -1,0 +1,28 @@
+# Personal configuration and local paths
+config.yaml
+
+# Large microscopy data
+*.qptiff
+*.tif
+*.tiff
+
+# Pipeline outputs
+results/
+output/
+chunks/
+*.npz
+*.joblib
+
+# Python/Conda files
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# macOS and VS Code
+.DS_Store
+.vscode/
