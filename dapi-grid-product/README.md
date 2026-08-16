@@ -8,10 +8,17 @@ and renders every valid grid square on the full tissue.
 ## What the clusters mean
 
 The clustering unit is a **spatial grid square**. It is not an individual cell.
-Each square is represented by distributions of nuclear area, perimeter,
-circularity, eccentricity, solidity, axis lengths, aspect ratio and DAPI
-intensity, plus nuclear density. The resulting label describes a local
-nuclear-shape phenotype.
+The pipeline first learns morphology-only nuclear phenotypes, then represents
+each grid by its phenotype composition, robust shape distributions and local
+tissue architecture. Density is retained only as a down-weighted context
+feature by default. The resulting label describes a local nuclear-morphology
+environment rather than a cell type.
+
+This two-stage design distinguishes a mixture of round and elongated nuclei
+from a uniformly intermediate population. It also prevents duplicate
+count/density variables from driving a sparse-versus-dense split. DAPI
+intensity is excluded from clustering by default because each processing chunk
+is normalized independently.
 
 ## Important safeguards
 
@@ -96,6 +103,7 @@ changes overlay opacity, reports cluster sizes and exports the grid table.
 | `tissue_mask.npz` | Low-resolution DAPI image and tissue mask |
 | `chunks/nuclei_*.csv` | Resumable per-chunk nucleus measurements |
 | `nuclei.csv` | All QC-passed nuclei in global coordinates |
+| `nuclear_phenotype_model.joblib` | Morphology-only per-nucleus phenotype model |
 | `grid_features.csv` | Shape distributions for valid grid squares |
 | `grid_clusters.csv` | Final grid features and cluster labels |
 | `cluster_selection.json` | Candidate cluster scores and selected solution |
@@ -104,12 +112,22 @@ changes overlay opacity, reports cluster sizes and exports the grid table.
 
 ## Cluster-number selection
 
-By default, the pipeline evaluates `k=2` through `k=10` and selects the highest
-sampled silhouette score. To force a particular result after inspection:
+By default, the pipeline evaluates `k=3` through `k=10`. Selection combines
+sampled silhouette, agreement across repeated fits (adjusted Rand index), and a
+small complexity term that prevents automatic collapse to the broadest two-way
+split. To force a particular result after inspection:
 
 ```yaml
 clustering:
   fixed_k: 5
+```
+
+Density handling can be changed without regenerating the feature table:
+
+```yaml
+clustering:
+  density_mode: "controlled"  # exclude, controlled, or full
+  density_weight: 0.20
 ```
 
 Unsupervised does not mean biologically validated. Inspect representative areas

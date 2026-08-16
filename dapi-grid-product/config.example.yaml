@@ -37,16 +37,30 @@ grid_qc:
   min_nuclei: 10
   min_tissue_fraction: 0.20
 
+phenotypes:
+  enabled: true
+  n_phenotypes: 5
+  fit_sample: 200000
+  minibatch_size: 4096
+  random_seed: 42
+
 clustering:
-  k_min: 2
+  k_min: 3
   k_max: 10
   fixed_k: null
   random_seed: 42
   silhouette_sample: 10000
   minibatch_size: 2048
+  stability_repeats: 5
+  stability_weight: 0.15
+  complexity_weight: 0.015
+  # exclude, controlled or full. Controlled keeps density as context at low weight.
+  density_mode: "controlled"
+  density_weight: 0.20
+  # Chunk-wise DAPI normalization makes intensity unsafe for global clustering.
+  include_dapi_intensity: false
 
 render:
   preview_level: 5
   alpha: 0.55
   draw_grid: false
-
