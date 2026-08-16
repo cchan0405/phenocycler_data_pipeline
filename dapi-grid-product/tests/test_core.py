@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from dapi_grid.grid_features import aggregate_grid_features
+from dapi_grid.grid_features import aggregate_grid_features, model_feature_columns
 from dapi_grid.image_ops import lowres_fraction_for_level0_box
 from dapi_grid.io import SlideReader
 from dapi_grid.tiling import iter_chunks
@@ -50,6 +50,32 @@ def test_grid_aggregation():
     )
     assert len(result) == 1
     assert result.iloc[0]["n_nuclei"] == 12
+    assert "area_iqr" in result
+    assert "architecture_normalized_nn_median" in result
+
+
+def test_grid_composition_and_density_are_separated():
+    n = 20
+    data = {"x": np.arange(n), "y": np.arange(n), "orientation": np.zeros(n)}
+    for name in [
+        "area", "perimeter", "circularity", "eccentricity", "solidity",
+        "major_axis_length", "minor_axis_length", "aspect_ratio", "mean_dapi",
+    ]:
+        data[name] = np.linspace(1, 2, n)
+    data["nuclear_phenotype"] = np.repeat([0, 1], 10)
+    result = aggregate_grid_features(
+        pd.DataFrame(data), grid_size=100, min_nuclei=10,
+        tissue_fraction={(0, 0): 0.5}, min_tissue_fraction=0.2,
+    )
+    row = result.iloc[0]
+    assert row["phenotype_0_proportion"] == 0.5
+    assert row["phenotype_1_proportion"] == 0.5
+    assert np.isclose(row["nuclear_density_px2"], 20 / 5000)
+    features = model_feature_columns(result)
+    assert "n_nuclei" not in features
+    assert "nuclear_density_px2" not in features
+    assert "log_nuclear_density" in features
+    assert not any(name.startswith("mean_dapi_") for name in features)
 
 
 def test_reader_uses_xy_width_height_order():

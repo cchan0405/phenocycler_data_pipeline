@@ -14,6 +14,7 @@ from .grid_features import aggregate_grid_features
 from .image_ops import lowres_fraction_for_level0_box, tissue_mask
 from .io import SlideReader
 from .nuclei import keep_owned_qc_nuclei, segment_and_measure
+from .phenotypes import assign_nuclear_phenotypes
 from .render import render_overlay
 from .tiling import grid_shape, iter_chunks
 
@@ -115,6 +116,11 @@ def run_pipeline(cfg: Config, *, force: bool = False) -> Path:
     if not frames:
         raise RuntimeError("No QC-passed nuclei were found.")
     nuclei = pd.concat(frames, ignore_index=True)
+    nuclei, phenotype_artifact = assign_nuclear_phenotypes(nuclei, cfg.phenotypes)
+    if phenotype_artifact is not None:
+        import joblib
+
+        joblib.dump(phenotype_artifact, out / "nuclear_phenotype_model.joblib")
     _write_csv_atomic(nuclei, out / "nuclei.csv")
 
     grid_size = cfg.resolved_grid_size_px

@@ -38,13 +38,28 @@ class GridQCConfig:
 
 
 @dataclass
+class PhenotypeConfig:
+    enabled: bool = True
+    n_phenotypes: int = 5
+    fit_sample: int = 200_000
+    minibatch_size: int = 4096
+    random_seed: int = 42
+
+
+@dataclass
 class ClusteringConfig:
-    k_min: int = 2
+    k_min: int = 3
     k_max: int = 10
     fixed_k: int | None = None
     random_seed: int = 42
     silhouette_sample: int = 10_000
     minibatch_size: int = 2048
+    stability_repeats: int = 5
+    stability_weight: float = 0.15
+    complexity_weight: float = 0.015
+    density_mode: str = "controlled"
+    density_weight: float = 0.20
+    include_dapi_intensity: bool = False
 
 
 @dataclass
@@ -69,6 +84,7 @@ class Config:
     stardist: StarDistConfig = field(default_factory=StarDistConfig)
     nucleus_qc: NucleusQCConfig = field(default_factory=NucleusQCConfig)
     grid_qc: GridQCConfig = field(default_factory=GridQCConfig)
+    phenotypes: PhenotypeConfig = field(default_factory=PhenotypeConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     render: RenderConfig = field(default_factory=RenderConfig)
 
@@ -95,6 +111,7 @@ def load_config(path: str | Path) -> Config:
     data["stardist"] = StarDistConfig(**sd)
     data["nucleus_qc"] = _nested(NucleusQCConfig, data, "nucleus_qc")
     data["grid_qc"] = _nested(GridQCConfig, data, "grid_qc")
+    data["phenotypes"] = _nested(PhenotypeConfig, data, "phenotypes")
     data["clustering"] = _nested(ClusteringConfig, data, "clustering")
     data["render"] = _nested(RenderConfig, data, "render")
     cfg = Config(**data)
@@ -102,5 +119,6 @@ def load_config(path: str | Path) -> Config:
         raise ValueError("halo_px must be smaller than half chunk_size_px")
     if cfg.clustering.fixed_k is None and cfg.clustering.k_min > cfg.clustering.k_max:
         raise ValueError("clustering.k_min must be <= clustering.k_max")
+    if cfg.clustering.density_mode not in {"exclude", "controlled", "full"}:
+        raise ValueError("clustering.density_mode must be exclude, controlled or full")
     return cfg
-
