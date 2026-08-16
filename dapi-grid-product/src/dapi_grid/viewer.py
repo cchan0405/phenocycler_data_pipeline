@@ -24,9 +24,16 @@ def main() -> None:
         return
     grid = pd.read_csv(needed)
     meta = json.loads((results_dir / "run_metadata.json").read_text(encoding="utf-8"))
-    overlay = results_dir / "whole_tissue_cluster_overlay.png"
+    overlay_options = {
+        "Confidence-weighted clusters": "whole_tissue_cluster_overlay.png",
+        "Unweighted clusters": "whole_tissue_unweighted_overlay.png",
+        "Prediction confidence": "whole_tissue_confidence_overlay.png",
+        "Training versus predicted": "whole_tissue_training_vs_predicted.png",
+    }
+    overlay_name = st.sidebar.selectbox("Saved overlay", list(overlay_options))
+    overlay = results_dir / overlay_options[overlay_name]
     if overlay.exists():
-        st.image(str(overlay), caption="Whole-tissue cluster overlay", use_container_width=True)
+        st.image(str(overlay), caption=overlay_name, use_container_width=True)
 
     clusters = sorted(grid["cluster"].unique())
     selected = st.sidebar.multiselect("Visible clusters", clusters, default=clusters)
@@ -51,6 +58,12 @@ def main() -> None:
     c1.metric("Valid grid squares", f"{len(grid):,}")
     c2.metric("Clusters", len(clusters))
     c3.metric("Median nuclei/grid", f"{grid['n_nuclei'].median():.0f}")
+    if "prediction_status" in grid:
+        st.subheader("Prediction reliability")
+        st.dataframe(
+            grid["prediction_status"].value_counts().rename_axis("status").reset_index(name="windows"),
+            use_container_width=True,
+        )
     st.subheader("Cluster summary")
     st.dataframe(
         grid.groupby("cluster")
@@ -67,4 +80,3 @@ def main() -> None:
 
 
 main()
-

@@ -38,6 +38,40 @@ class GridQCConfig:
 
 
 @dataclass
+class SpatialConfig:
+    """Separate the measurement neighbourhood from the rendered tile size."""
+
+    analysis_window_px: int | None = None
+    display_stride_px: int | None = None
+
+
+@dataclass
+class CoverageConfig:
+    min_nuclei_predict: int = 1
+    min_tissue_fraction_predict: float = 0.005
+
+
+@dataclass
+class TrainingConfig:
+    min_nuclei_train: int = 8
+    min_tissue_fraction_train: float = 0.10
+
+
+@dataclass
+class DensityCorrectionConfig:
+    residualize: bool = True
+    spline_knots: int = 4
+    ridge_alpha: float = 1.0
+
+
+@dataclass
+class ConfidenceConfig:
+    low_confidence_threshold: float = 0.40
+    minimum_display_confidence: float = 0.05
+    confidence_weighted_alpha: bool = True
+
+
+@dataclass
 class PhenotypeConfig:
     enabled: bool = True
     n_phenotypes: int = 5
@@ -84,6 +118,13 @@ class Config:
     stardist: StarDistConfig = field(default_factory=StarDistConfig)
     nucleus_qc: NucleusQCConfig = field(default_factory=NucleusQCConfig)
     grid_qc: GridQCConfig = field(default_factory=GridQCConfig)
+    spatial: SpatialConfig = field(default_factory=SpatialConfig)
+    coverage: CoverageConfig = field(default_factory=CoverageConfig)
+    training: TrainingConfig = field(default_factory=TrainingConfig)
+    density_correction: DensityCorrectionConfig = field(
+        default_factory=DensityCorrectionConfig
+    )
+    confidence: ConfidenceConfig = field(default_factory=ConfidenceConfig)
     phenotypes: PhenotypeConfig = field(default_factory=PhenotypeConfig)
     clustering: ClusteringConfig = field(default_factory=ClusteringConfig)
     render: RenderConfig = field(default_factory=RenderConfig)
@@ -93,6 +134,14 @@ class Config:
         if self.grid_size_um is not None and self.pixel_size_um is not None:
             return max(1, round(self.grid_size_um / self.pixel_size_um))
         return self.grid_size_px
+
+    @property
+    def resolved_analysis_window_px(self) -> int:
+        return self.spatial.analysis_window_px or self.resolved_grid_size_px
+
+    @property
+    def resolved_display_stride_px(self) -> int:
+        return self.spatial.display_stride_px or self.resolved_grid_size_px
 
 
 def _nested(cls: type, data: dict[str, Any], key: str):
@@ -110,7 +159,30 @@ def load_config(path: str | Path) -> Config:
         sd["n_tiles"] = tuple(sd["n_tiles"])
     data["stardist"] = StarDistConfig(**sd)
     data["nucleus_qc"] = _nested(NucleusQCConfig, data, "nucleus_qc")
+    has_coverage = "coverage" in data
+    has_training = "training" in data
     data["grid_qc"] = _nested(GridQCConfig, data, "grid_qc")
+    data["spatial"] = _nested(SpatialConfig, data, "spatial")
+    data["coverage"] = (
+        _nested(CoverageConfig, data, "coverage")
+        if has_coverage
+        else CoverageConfig(
+            min_nuclei_predict=data["grid_qc"].min_nuclei,
+            min_tissue_fraction_predict=data["grid_qc"].min_tissue_fraction,
+        )
+    )
+    data["training"] = (
+        _nested(TrainingConfig, data, "training")
+        if has_training
+        else TrainingConfig(
+            min_nuclei_train=data["grid_qc"].min_nuclei,
+            min_tissue_fraction_train=data["grid_qc"].min_tissue_fraction,
+        )
+    )
+    data["density_correction"] = _nested(
+        DensityCorrectionConfig, data, "density_correction"
+    )
+    data["confidence"] = _nested(ConfidenceConfig, data, "confidence")
     data["phenotypes"] = _nested(PhenotypeConfig, data, "phenotypes")
     data["clustering"] = _nested(ClusteringConfig, data, "clustering")
     data["render"] = _nested(RenderConfig, data, "render")
@@ -121,4 +193,8 @@ def load_config(path: str | Path) -> Config:
         raise ValueError("clustering.k_min must be <= clustering.k_max")
     if cfg.clustering.density_mode not in {"exclude", "controlled", "full"}:
         raise ValueError("clustering.density_mode must be exclude, controlled or full")
+    if cfg.resolved_analysis_window_px < cfg.resolved_display_stride_px:
+        raise ValueError("analysis_window_px must be >= display_stride_px")
+    if cfg.training.min_nuclei_train < cfg.coverage.min_nuclei_predict:
+        raise ValueError("min_nuclei_train must be >= min_nuclei_predict")
     return cfg

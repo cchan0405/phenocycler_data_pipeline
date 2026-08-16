@@ -9,7 +9,7 @@ detection_level: 5
 chunk_size_px: 4096
 halo_px: 128
 
-# Spatial analysis grid. Used only when pixel size cannot be read from metadata.
+# Legacy non-overlapping grid size and physical calibration fallback.
 grid_size_px: 512
 # Optional physical grid size. Leave null until pixel size is known.
 grid_size_um: null
@@ -37,6 +37,33 @@ grid_qc:
   min_nuclei: 10
   min_tissue_fraction: 0.20
 
+# Version 2: calculate features in a larger overlapping neighbourhood, but
+# render the result onto smaller tiles. The legacy grid_qc values are used only
+# when coverage/training sections are omitted.
+spatial:
+  analysis_window_px: 512
+  display_stride_px: 256
+
+# Any tile meeting these thresholds can receive a prediction.
+coverage:
+  min_nuclei_predict: 1
+  min_tissue_fraction_predict: 0.005
+
+# Only reliable windows meeting these thresholds fit scaling, PCA and K-means.
+training:
+  min_nuclei_train: 8
+  min_tissue_fraction_train: 0.10
+
+density_correction:
+  residualize: true
+  spline_knots: 4
+  ridge_alpha: 1.0
+
+confidence:
+  low_confidence_threshold: 0.40
+  minimum_display_confidence: 0.05
+  confidence_weighted_alpha: true
+
 phenotypes:
   enabled: true
   n_phenotypes: 5
@@ -54,9 +81,9 @@ clustering:
   stability_repeats: 5
   stability_weight: 0.15
   complexity_weight: 0.015
-  # exclude, controlled or full. Controlled keeps density as context at low weight.
-  density_mode: "controlled"
-  density_weight: 0.20
+  # Density remains available for residualisation but is not a model feature.
+  density_mode: "exclude"
+  density_weight: 0.0
   # Chunk-wise DAPI normalization makes intensity unsafe for global clustering.
   include_dapi_intensity: false
 

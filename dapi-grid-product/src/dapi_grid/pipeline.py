@@ -10,13 +10,13 @@ from stardist.models import StarDist2D
 
 from .clustering import fit_grid_clusters
 from .config import Config
-from .grid_features import aggregate_grid_features
 from .image_ops import lowres_fraction_for_level0_box, tissue_mask
 from .io import SlideReader
 from .nuclei import keep_owned_qc_nuclei, segment_and_measure
 from .phenotypes import assign_nuclear_phenotypes
-from .render import render_overlay
+from .render import render_confidence_overlay, render_overlay, render_status_overlay
 from .tiling import grid_shape, iter_chunks
+from .window_features import aggregate_overlapping_windows
 
 LOG = logging.getLogger("dapi_grid")
 
@@ -60,7 +60,9 @@ def run_pipeline(cfg: Config, *, force: bool = False) -> Path:
                 "detection_level": cfg.detection_level,
                 "low_shape": list(low.shape),
                 "level0_shape": list(level0_shape),
-                "grid_size_px": cfg.resolved_grid_size_px,
+                "grid_size_px": cfg.resolved_display_stride_px,
+                "display_stride_px": cfg.resolved_display_stride_px,
+                "analysis_window_px": cfg.resolved_analysis_window_px,
                 "pixel_size_um": cfg.pixel_size_um,
             },
             indent=2,
@@ -123,38 +125,92 @@ def run_pipeline(cfg: Config, *, force: bool = False) -> Path:
         joblib.dump(phenotype_artifact, out / "nuclear_phenotype_model.joblib")
     _write_csv_atomic(nuclei, out / "nuclei.csv")
 
-    grid_size = cfg.resolved_grid_size_px
-    n_rows, n_cols = grid_shape(level0_shape, grid_size)
-    fractions = {}
+    display_stride = cfg.resolved_display_stride_px
+    analysis_window = cfg.resolved_analysis_window_px
+    n_rows, n_cols = grid_shape(level0_shape, display_stride)
+    display_fractions = {}
+    analysis_fractions = {}
+    half = analysis_window / 2.0
     for gr in range(n_rows):
         for gc in range(n_cols):
-            box = (
-                gr * grid_size,
-                gc * grid_size,
-                min(level0_shape[0], (gr + 1) * grid_size),
-                min(level0_shape[1], (gc + 1) * grid_size),
+            display_box = (
+                gr * display_stride,
+                gc * display_stride,
+                min(level0_shape[0], (gr + 1) * display_stride),
+                min(level0_shape[1], (gc + 1) * display_stride),
             )
-            fractions[(gr, gc)] = lowres_fraction_for_level0_box(mask, box, level0_shape)
-    grid_df = aggregate_grid_features(
+            display_fractions[(gr, gc)] = lowres_fraction_for_level0_box(
+                mask, display_box, level0_shape
+            )
+            cy = min(level0_shape[0] - 1, (gr + 0.5) * display_stride)
+            cx = min(level0_shape[1] - 1, (gc + 0.5) * display_stride)
+            analysis_box = (
+                max(0, int(cy - half)),
+                max(0, int(cx - half)),
+                min(level0_shape[0], int(np.ceil(cy + half))),
+                min(level0_shape[1], int(np.ceil(cx + half))),
+            )
+            analysis_fractions[(gr, gc)] = lowres_fraction_for_level0_box(
+                mask, analysis_box, level0_shape
+            )
+    grid_df = aggregate_overlapping_windows(
         nuclei,
-        grid_size=grid_size,
-        min_nuclei=cfg.grid_qc.min_nuclei,
-        tissue_fraction=fractions,
-        min_tissue_fraction=cfg.grid_qc.min_tissue_fraction,
+        level0_shape=level0_shape,
+        analysis_window_px=analysis_window,
+        display_stride_px=display_stride,
+        display_tissue_fraction=display_fractions,
+        analysis_tissue_fraction=analysis_fractions,
+        min_nuclei_predict=cfg.coverage.min_nuclei_predict,
+        min_tissue_fraction_predict=cfg.coverage.min_tissue_fraction_predict,
     )
     if grid_df.empty:
         raise RuntimeError("No grid squares passed high-resolution QC.")
     _write_csv_atomic(grid_df, out / "grid_features.csv")
-    clustered = fit_grid_clusters(grid_df, cfg.clustering, out)
+    _write_csv_atomic(grid_df, out / "window_features.csv")
+    clustered = fit_grid_clusters(
+        grid_df,
+        cfg.clustering,
+        out,
+        training_cfg=cfg.training,
+        density_cfg=cfg.density_correction,
+        confidence_cfg=cfg.confidence,
+    )
     _write_csv_atomic(clustered, out / "grid_clusters.csv")
     render_overlay(
         low,
         clustered,
         level0_shape=level0_shape,
-        grid_size=grid_size,
+        grid_size=display_stride,
         alpha=cfg.render.alpha,
         draw_grid=cfg.render.draw_grid,
         output_path=out / "whole_tissue_cluster_overlay.png",
+        confidence_weighted=cfg.confidence.confidence_weighted_alpha,
+        minimum_confidence=cfg.confidence.minimum_display_confidence,
+    )
+    render_overlay(
+        low,
+        clustered,
+        level0_shape=level0_shape,
+        grid_size=display_stride,
+        alpha=cfg.render.alpha,
+        draw_grid=cfg.render.draw_grid,
+        output_path=out / "whole_tissue_unweighted_overlay.png",
+        confidence_weighted=False,
+        minimum_confidence=0.0,
+    )
+    render_confidence_overlay(
+        low,
+        clustered,
+        level0_shape=level0_shape,
+        grid_size=display_stride,
+        output_path=out / "whole_tissue_confidence_overlay.png",
+    )
+    render_status_overlay(
+        low,
+        clustered,
+        level0_shape=level0_shape,
+        grid_size=display_stride,
+        output_path=out / "whole_tissue_training_vs_predicted.png",
     )
     LOG.info("Complete: %s", out)
     return out

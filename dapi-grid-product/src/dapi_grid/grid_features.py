@@ -108,9 +108,17 @@ def model_feature_columns(
         "y0",
         "cluster",
         "tissue_fraction",
+        "analysis_tissue_fraction",
+        "analysis_center_x",
+        "analysis_center_y",
         "n_nuclei",
         "nuclear_density_px2",
         "distance_to_centroid",
+        "sampling_confidence",
+        "cluster_confidence",
+        "overall_confidence",
+        "prediction_status",
+        "is_training_window",
     }
     if density_mode == "exclude":
         excluded.add("log_nuclear_density")
