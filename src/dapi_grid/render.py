@@ -4,7 +4,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import BoundaryNorm, ListedColormap
+from matplotlib.collections import EllipseCollection
+from matplotlib.colors import BoundaryNorm, ListedColormap, to_rgba
 from PIL import Image
 
 from .image_ops import robust_norm
@@ -22,6 +23,58 @@ COLORS = [
     "#B15928",
     "#1B9E77",
 ]
+
+
+def render_nuclear_phenotypes(
+    dapi_preview: np.ndarray,
+    nuclei,
+    *,
+    level0_shape: tuple[int, int],
+    output_path: Path,
+    alpha: float = 0.65,
+) -> None:
+    """Render one morphology-coloured ellipse for every detected nucleus."""
+    preview = robust_norm(dapi_preview)
+    phenotypes = nuclei["nuclear_phenotype"].to_numpy(dtype=int)
+    n_phenotypes = int(phenotypes.max()) + 1
+    palette = np.asarray([to_rgba(c, alpha=alpha) for c in COLORS[:n_phenotypes]])
+    widths = nuclei["major_axis_length"].clip(lower=1).to_numpy(float)
+    heights = nuclei["minor_axis_length"].clip(lower=1).to_numpy(float)
+    angles = 90.0 - np.degrees(nuclei["orientation"].fillna(0).to_numpy(float))
+    offsets = nuclei[["x", "y"]].to_numpy(float)
+
+    fig, ax = plt.subplots(figsize=(16, 16))
+    ax.imshow(
+        preview,
+        cmap="gray",
+        extent=[0, level0_shape[1], level0_shape[0], 0],
+        interpolation="nearest",
+    )
+    collection = EllipseCollection(
+        widths,
+        heights,
+        angles,
+        units="xy",
+        offsets=offsets,
+        transOffset=ax.transData,
+        facecolors=palette[phenotypes],
+        edgecolors="none",
+    )
+    ax.add_collection(collection)
+    handles = [
+        plt.Line2D([0], [0], marker="o", linestyle="none", markersize=7,
+                   markerfacecolor=COLORS[i], markeredgecolor="none",
+                   label=f"phenotype {i}")
+        for i in range(n_phenotypes)
+    ]
+    ax.legend(handles=handles, loc="upper right", framealpha=0.8)
+    ax.set_title("Level-0 individual nuclear morphology phenotypes")
+    ax.set_xlim(0, level0_shape[1])
+    ax.set_ylim(level0_shape[0], 0)
+    ax.set_axis_off()
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(fig)
 
 
 def render_overlay(

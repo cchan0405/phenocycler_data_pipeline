@@ -69,8 +69,6 @@ def aggregate_overlapping_windows(
     )
     rows: list[dict] = []
     for (gr, gc), display_tf in display_tissue_fraction.items():
-        if display_tf < min_tissue_fraction_predict:
-            continue
         cy = min(level0_shape[0] - 1, (gr + 0.5) * display_stride_px)
         cx = min(level0_shape[1] - 1, (gc + 0.5) * display_stride_px)
         candidate = tree.query_ball_point([cx, cy], radius)
@@ -87,7 +85,14 @@ def aggregate_overlapping_windows(
         if len(group) < min_nuclei_predict:
             continue
         analysis_tf = float(analysis_tissue_fraction.get((gr, gc), display_tf))
-        effective_area = max(analysis_window_px**2 * analysis_tf, 1.0)
+        # A coarse contextual mask is allowed to miss real tissue. When it does,
+        # fall back to the complete analysis-window area rather than creating an
+        # artificially enormous density from a near-zero denominator.
+        effective_area = (
+            max(analysis_window_px**2 * analysis_tf, 1.0)
+            if analysis_tf > 0
+            else float(analysis_window_px**2)
+        )
         row: dict[str, float | int] = {
             "grid_row": int(gr),
             "grid_col": int(gc),

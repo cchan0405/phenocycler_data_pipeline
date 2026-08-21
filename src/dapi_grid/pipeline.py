@@ -14,11 +14,17 @@ from .image_ops import lowres_fraction_for_level0_box, tissue_mask
 from .io import SlideReader
 from .nuclei import keep_owned_nuclei, segment_and_measure
 from .phenotypes import assign_nuclear_phenotypes
-from .render import render_confidence_overlay, render_overlay, render_status_overlay
+from .render import (
+    render_confidence_overlay,
+    render_nuclear_phenotypes,
+    render_overlay,
+    render_status_overlay,
+)
 from .tiling import grid_shape, iter_chunks
 from .window_features import aggregate_overlapping_windows
 
 LOG = logging.getLogger("dapi_grid")
+SEGMENTATION_LEVEL = 0
 
 
 def _write_csv_atomic(df: pd.DataFrame, path: Path) -> None:
@@ -58,6 +64,7 @@ def run_pipeline(cfg: Config, *, force: bool = False) -> Path:
                 "input_qptiff": str(cfg.input_qptiff),
                 "channel": cfg.channel,
                 "detection_level": cfg.detection_level,
+                "segmentation_level": SEGMENTATION_LEVEL,
                 "low_shape": list(low.shape),
                 "level0_shape": list(level0_shape),
                 "grid_size_px": cfg.resolved_display_stride_px,
@@ -71,28 +78,19 @@ def run_pipeline(cfg: Config, *, force: bool = False) -> Path:
     )
 
     model = StarDist2D.from_pretrained(cfg.stardist.model)
-    processed = skipped = 0
+    processed = reused = 0
     for chunk in iter_chunks(level0_shape, cfg.chunk_size_px, cfg.halo_px):
         path = _chunk_path(out, chunk.chunk_id)
         if path.exists() and not force:
-            skipped += 1
+            reused += 1
             continue
-        tissue_fraction = lowres_fraction_for_level0_box(
-            mask,
-            (chunk.core_y0, chunk.core_x0, chunk.core_y1, chunk.core_x1),
-            level0_shape,
-        )
-        if tissue_fraction < cfg.tissue_mask.min_positive_fraction:
-            _write_csv_atomic(pd.DataFrame(), path)
-            skipped += 1
-            continue
-        LOG.info("Segmenting chunk %d", chunk.chunk_id)
+        LOG.info("Segmenting chunk %d at mandatory level 0", chunk.chunk_id)
         image = reader.read_region(
             y=chunk.read_y0,
             x=chunk.read_x0,
             height=chunk.read_y1 - chunk.read_y0,
             width=chunk.read_x1 - chunk.read_x0,
-            level=0,
+            level=SEGMENTATION_LEVEL,
         )
         measured = segment_and_measure(
             image,
@@ -104,7 +102,7 @@ def run_pipeline(cfg: Config, *, force: bool = False) -> Path:
         kept = keep_owned_nuclei(measured, chunk)
         _write_csv_atomic(kept, path)
         processed += 1
-    LOG.info("Chunks newly processed: %d; reused/skipped: %d", processed, skipped)
+    LOG.info("Chunks newly processed: %d; reused: %d", processed, reused)
 
     frames = []
     for path in sorted((out / "chunks").glob("nuclei_*.csv")):
@@ -124,6 +122,12 @@ def run_pipeline(cfg: Config, *, force: bool = False) -> Path:
 
         joblib.dump(phenotype_artifact, out / "nuclear_phenotype_model.joblib")
     _write_csv_atomic(nuclei, out / "nuclei.csv")
+    render_nuclear_phenotypes(
+        low,
+        nuclei,
+        level0_shape=level0_shape,
+        output_path=out / "whole_tissue_nuclear_phenotypes.png",
+    )
 
     display_stride = cfg.resolved_display_stride_px
     analysis_window = cfg.resolved_analysis_window_px

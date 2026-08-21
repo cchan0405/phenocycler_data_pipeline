@@ -1,7 +1,7 @@
 # DAPI Grid
 
 This project converts the one-ROI proof of concept into a resumable whole-tissue
-pipeline. It uses DAPI only, segments nuclei with StarDist2D, summarises nuclear
+pipeline. It uses DAPI only, segments every level-0 chunk with StarDist2D, summarises nuclear
 shape within overlapping spatial neighbourhoods, fits an unsupervised model on
 reliable windows, predicts sparse windows with explicit confidence, and renders
 small display tiles across the full tissue.
@@ -30,7 +30,9 @@ weighted opacity.
 ## Important safeguards
 
 - The level-0 image is never loaded in full.
-- Low-resolution masking skips empty chunks.
+- Every level-0 chunk is segmented. The low-resolution mask is used only for
+  preview and tissue-fraction context; it never excludes a chunk or a
+  nucleus-containing prediction window.
 - StarDist chunks include a halo so nuclei are not cut at boundaries.
 - Only nuclei whose centres belong to the non-overlapping chunk core are kept,
   preventing duplicate counting.
@@ -84,6 +86,10 @@ The first run should use the defaults. Because pixel size is currently unknown,
 the initial grid is 512 × 512 level-0 pixels. Once calibration is available,
 set both `pixel_size_um` and `grid_size_um`; this overrides `grid_size_px`.
 
+StarDist segmentation is deliberately fixed at pyramid level 0. The
+`detection_level` setting controls only the inexpensive preview and contextual
+tissue-fraction calculation; it does not control segmentation resolution.
+
 ## Run or resume
 
 ```bash
@@ -114,6 +120,7 @@ changes overlay opacity, reports cluster sizes and exports the grid table.
 | `chunks/nuclei_*.csv` | Resumable per-chunk nucleus measurements |
 | `nuclei.csv` | All owned StarDist detections in global coordinates |
 | `nuclear_phenotype_model.joblib` | Morphology-only per-nucleus phenotype model |
+| `whole_tissue_nuclear_phenotypes.png` | Primary cell-focused map: one morphology-coloured ellipse per level-0 nucleus |
 | `grid_features.csv` | Shape distributions for all prediction-eligible windows |
 | `window_features.csv` | Alias with version-2 terminology for the same feature table |
 | `grid_clusters.csv` | Final grid features and cluster labels |
@@ -125,7 +132,7 @@ changes overlay opacity, reports cluster sizes and exports the grid table.
 | `representative_windows.csv` | Twelve centroid-nearest windows per cluster |
 | `cluster_selection.json` | Candidate cluster scores and selected solution |
 | `grid_cluster_model.joblib` | Saved scaler, PCA and clustering model |
-| `whole_tissue_cluster_overlay.png` | Confidence-weighted final map |
+| `whole_tissue_cluster_overlay.png` | Secondary local phenotype-composition/environment map |
 | `whole_tissue_unweighted_overlay.png` | All predictions at equal opacity |
 | `whole_tissue_confidence_overlay.png` | Continuous confidence map |
 | `whole_tissue_training_vs_predicted.png` | Training, prediction and low-confidence status |

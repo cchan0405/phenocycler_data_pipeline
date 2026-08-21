@@ -163,6 +163,23 @@ def test_overlapping_window_uses_larger_context_than_stride():
     assert "architecture_available" in windows
 
 
+def test_nuclei_override_missing_low_resolution_tissue_mask():
+    nuclei = _synthetic_nuclei(60)
+    fractions = {(r, c): 0.0 for r in range(4) for c in range(4)}
+    windows = aggregate_overlapping_windows(
+        nuclei,
+        level0_shape=(400, 400),
+        analysis_window_px=200,
+        display_stride_px=100,
+        display_tissue_fraction=fractions,
+        analysis_tissue_fraction=fractions,
+        min_nuclei_predict=1,
+        min_tissue_fraction_predict=0.99,
+    )
+    assert not windows.empty
+    assert windows["n_nuclei"].min() >= 1
+
+
 def test_reliable_windows_fit_and_sparse_windows_only_predict(tmp_path):
     nuclei = _synthetic_nuclei(300)
     fractions = {(r, c): 1.0 for r in range(8) for c in range(8)}

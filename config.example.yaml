@@ -2,7 +2,8 @@ input_qptiff: "C:/path/to/your/large_image.qptiff"
 output_dir: "C:/path/to/dapi_grid_results"
 channel: "DAPI"
 
-# Pyramid level used to create the inexpensive whole-tissue mask.
+# Pyramid level used only for preview and tissue-fraction context.
+# StarDist segmentation is mandatory at level 0 and cannot be changed here.
 detection_level: 5
 
 # Level-0 chunk size and halo. The halo prevents nuclei being cut at chunk edges.
@@ -38,10 +39,11 @@ spatial:
   analysis_window_px: 512
   display_stride_px: 256
 
-# Any tile meeting these thresholds can receive a prediction.
+# Any window containing this many level-0 StarDist nuclei can receive a
+# prediction. Tissue fraction is recorded but no longer blocks prediction.
 coverage:
   min_nuclei_predict: 1
-  min_tissue_fraction_predict: 0.005
+  min_tissue_fraction_predict: 0.0
 
 # Only reliable windows meeting these thresholds fit scaling, PCA and K-means.
 training:
