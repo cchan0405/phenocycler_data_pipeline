@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools==75.3.2", "wheel==0.45.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dapi-grid"
+version = "0.1.0"
+description = "Whole-tissue DAPI nuclear-shape grid clustering for QPTIFF images"
+# TensorFlow 2.10.1 and StarDist 0.9.1 are installed from Python 3.10 wheels.
+# Do not broaden this until the complete imaging stack has been retested.
+requires-python = ">=3.10,<3.11"
+dependencies = [
+  "csbdeep==0.8.2",
+  "imagecodecs==2025.3.30",
+  "matplotlib==3.7.5",
+  "mxtifffile==0.0.2",
+  "numpy==1.23.5",
+  "pandas==1.5.3",
+  "Pillow==10.2.0",
+  "protobuf==3.19.6",
+  "PyYAML==6.0.1",
+  "scikit-image==0.21.0",
+  "scikit-learn==1.3.2",
+  "scipy==1.10.1",
+  "stardist==0.9.1",
+  "tensorflow==2.10.1",
+  "tifffile==2023.9.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.5"]
+
+[project.scripts]
+dapi-grid = "dapi_grid.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

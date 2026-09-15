@@ -1,0 +1,21 @@
+control:
+  name: negative_control
+  results_dir: "C:/results/negative_control"
+
+experimentals:
+  - name: experimental_01
+    results_dir: "C:/results/experimental_01"
+  - name: experimental_02
+    results_dir: "C:/results/experimental_02"
+
+output_dir: "C:/results/comparison"
+
+# Each image contributes the same number of spatially separated windows.
+max_training_windows_per_image: 5000
+k_min: 2
+k_max: 10
+silhouette_sample: 10000
+minimum_cluster_fraction: 0.01
+stability_repeats: 5
+random_seed: 42
+overlay_alpha: 0.55

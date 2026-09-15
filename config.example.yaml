@@ -1,0 +1,29 @@
+input_qptiff: "C:/path/to/image.qptiff"
+output_dir: "C:/path/to/results"
+channel: "DAPI"
+
+# Preview only. Segmentation always uses the original level-0 pixels.
+preview_level: 5
+chunk_size_px: 4096
+halo_px: 128
+
+# Each displayed tile is classified from a larger, overlapping neighbourhood.
+window_size_px: 512
+stride_px: 256
+
+# The pipeline automatically selects k using elbow and silhouette analysis.
+k_min: 2
+k_max: 10
+silhouette_sample: 10000
+minimum_cluster_fraction: 0.01
+stability_repeats: 5
+random_seed: 42
+
+overlay_alpha: 0.55
+segmentation_outline_width: 2
+
+stardist:
+  model: "2D_versatile_fluo"
+  prob_thresh: 0.50
+  nms_thresh: 0.40
+  n_tiles: [2, 2]
