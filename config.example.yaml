@@ -1,0 +1,48 @@
+input_qptiff: "C:/path/to/image.qptiff"
+output_dir: "C:/path/to/results"
+channel: "DAPI"
+
+# Preview only. Segmentation always uses the original level-0 pixels.
+preview_level: 5
+chunk_size_px: 4096
+halo_px: 128
+
+# Spatial windows summarise the mixture of cell phenotypes after cell clustering.
+window_size_px: 512
+stride_px: 256
+
+# A permissive preview mask is expanded before it is used. Chunks with almost
+# no tissue are skipped before StarDist, and detections outside the mask are removed.
+minimum_tissue_fraction: 0.05
+minimum_nuclei_per_cluster_window: 3
+mask_rescue_nuclei: 5
+tissue_mask_gaussian_sigma: 1.0
+tissue_mask_min_object_area: 200
+tissue_mask_closing_radius: 2
+tissue_mask_expansion_radius: 3
+minimum_chunk_tissue_fraction: 0.005
+
+# Individual nuclei are clustered by morphology. At most this many nuclei are
+# used to train the model; the trained model labels every retained nucleus.
+maximum_training_nuclei: 100000
+# "prompt" writes the graph and asks for k in the terminal.
+# Use "automatic" for unattended runs or "fixed" together with fixed_k.
+cluster_selection_mode: "prompt"
+k_min: 2
+k_max: 10
+# Leave null in prompt/automatic mode. In fixed mode, set e.g. 5.
+fixed_k: null
+silhouette_sample: 10000
+minimum_cluster_fraction: 0.01
+stability_repeats: 5
+random_seed: 42
+
+overlay_alpha: 0.55
+segmentation_outline_width: 2
+segmentation_fill_alpha: 0.35
+
+stardist:
+  model: "2D_versatile_fluo"
+  prob_thresh: 0.50
+  nms_thresh: 0.40
+  n_tiles: [2, 2]
